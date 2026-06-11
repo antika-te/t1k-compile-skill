@@ -18,7 +18,7 @@ Claude Code Skill - 自动化编译 OpenResty/Nginx 的 T1K 动态模块（雷�
 mkdir -p ~/.claude/skills
 
 # 下载 skill 文件
-curl -o ~/.claude/skills/t1k-compile.md https://raw.githubusercontent.com/YOUR_USERNAME/t1k-compile-skill/main/t1k-compile.md
+curl -o ~/.claude/skills/t1k-compile.md https://raw.githubusercontent.com/antika-te/t1k-compile-skill/main/t1k-compile.md
 
 # 或手动复制
 cp t1k-compile.md ~/.claude/skills/
@@ -27,7 +27,7 @@ cp t1k-compile.md ~/.claude/skills/
 ### 方法二：克隆仓库
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/t1k-compile-skill.git
+git clone https://github.com/antika-te/t1k-compile-skill.git
 cp t1k-compile-skill/t1k-compile.md ~/.claude/skills/
 ```
 
