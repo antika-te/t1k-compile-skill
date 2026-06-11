@@ -180,7 +180,7 @@ t1k_extra_body on;      # 记录额外请求体信息
 # tx_intercept @safelinex;
 
 # 响应体最大转发大小
-# tx_body_size 1m;
+# tx_body_size 4k;
 
 # 响应体检测触发大小（响应超过此大小才开始检测）
 # tx_max_detect_size 1m;
@@ -281,7 +281,7 @@ upstream detector_server {
 }
 
 t1k_intercept @safeline;
-t1k_body_size 2m;
+t1k_body_size 1m;
 t1k_ulog 10000;
 t1k_stat 10000;
 t1k_extra_header on;
@@ -291,9 +291,9 @@ foreach_server {
     location @safeline {
         internal;
         t1k_pass detector_server;
-        t1k_connect_timeout 2s;
-        t1k_read_timeout 2s;
-        t1k_send_timeout 2s;
+        t1k_connect_timeout 1s;
+        t1k_read_timeout 1s;
+        t1k_send_timeout 1s;
     }
 }
 ```
@@ -315,7 +315,7 @@ upstream detector_server {
 
 # ===== 请求检测配置 =====
 t1k_intercept @safeline;
-t1k_body_size 5m;           # 允许检测 5MB 请求体
+t1k_body_size 1m;           # 允许检测 5MB 请求体
 t1k_ulog 10000;             # 记录访问日志
 t1k_stat 10000;             # 记录统计信息
 t1k_extra_header on;        # 记录额外请求头
@@ -324,7 +324,7 @@ t1k_extra_body on;          # 记录额外请求体
 # ===== 响应检测配置 =====
 # 启用响应检测，检测响应体中的敏感信息泄露
 tx_intercept @safelinex;
-tx_body_size 1m;            # 响应体检测上限
+tx_body_size 4k;            # 响应体检测上限
 tx_max_detect_size 500k;    # 响应超过 500KB 才开始检测
 
 # 忽略检测的响应类型（媒体文件不检测）
@@ -351,40 +351,41 @@ foreach_server {
     location @safeline {
         internal;
         t1k_pass detector_server;
-        t1k_connect_timeout 2s;
+        t1k_connect_timeout 1s;
         t1k_read_timeout 3s;
-        t1k_send_timeout 2s;
+        t1k_send_timeout 1s;
     }
     
     # 响应检测 location
     location @safelinex {
         internal;
         tx_pass detector_server;
-        tx_connect_timeout 2s;
-        tx_read_timeout 3s;
-        tx_send_timeout 2s;
+        tx_connect_timeout 1s;
+        tx_read_timeout 1s;
+        tx_send_timeout 1s;
     }
 }
 ```
 
-### 模板四：响应检测专用配置
+### 模板四：响应检测补充配置
 
-仅启用响应检测，适用于需要检测响应内容的场景。
+通常响应检测与请求检测一起启用，不建议单独开启响应检测。
+响应检测主要用于检测敏感信息泄露，推荐 tx_body_size 设置为 4k。
 
 ```nginx
-# safeline.conf - 仅响应检测配置
+# safeline.conf - 请求+响应检测配置
 upstream detector_server {
     keepalive 256;
     server 192.168.1.100:8000;
 }
 
-# 不启用请求检测
-# t1k_intercept @safeline;
+# ===== 请求检测（必开）=====
+t1k_intercept @safeline;
+t1k_body_size 1m;           # 请求体检测上限：1MB
 
-# 启用响应检测（检测响应体中的敏感数据、错误信息等）
+# ===== 响应检测（可选）=====
 tx_intercept @safelinex;
-tx_body_size 2m;
-tx_max_detect_size 1m;
+tx_body_size 4k;            # 响应体检测上限：4KB（检测敏感信息泄露）
 
 tx_ignore_types
     image/*
@@ -394,11 +395,19 @@ tx_ignore_types
     application/zip;
 
 foreach_server {
+    location @safeline {
+        internal;
+        t1k_pass detector_server;
+        t1k_connect_timeout 1s;
+        t1k_read_timeout 1s;
+        t1k_send_timeout 1s;
+    }
+    
     location @safelinex {
         internal;
         tx_pass detector_server;
-        tx_connect_timeout 2s;
-        tx_read_timeout 2s;
+        tx_connect_timeout 1s;
+        tx_read_timeout 1s;
         tx_send_timeout 1s;
     }
 }
@@ -422,7 +431,7 @@ tx_intercept @safelinex;
 | 参数 | 说明 | 默认值 | 建议值 |
 |------|------|--------|--------|
 | `tx_intercept` | 启用响应检测 | 关闭 | 开启后需配置 @safelinex location |
-| `tx_body_size` | 响应体转发上限 | 1m | 1m-5m，根据业务调整 |
+| `tx_body_size` | 响应体转发上限 | 1m | 4k，检测敏感信息足够 |
 | `tx_max_detect_size` | 触发检测阈值 | 0 | 500k-1m，小文件不检测节省资源 |
 | `tx_ignore_types` | 忽略的 MIME 类型 | 空 | 建议忽略媒体文件 |
 | `tx_pass` | 检测节点地址 | - | 同 detector_server |
@@ -443,7 +452,7 @@ tx_intercept @safelinex;
 
 ```nginx
 # 最大转发 2MB 响应体
-tx_body_size 2m;
+tx_body_size 4k;
 ```
 
 **tx_max_detect_size size**
@@ -477,9 +486,9 @@ foreach_server {
     location @safelinex {
         internal;                   # 仅内部调用
         tx_pass detector_server;    # 转发到检测节点
-        tx_connect_timeout 2s;      # 连接超时
-        tx_read_timeout 3s;         # 读取超时
-        tx_send_timeout 2s;         # 发送超时
+        tx_connect_timeout 1s;      # 连接超时
+        tx_read_timeout 1s;         # 读取超时
+        tx_send_timeout 1s;         # 发送超时
     }
 }
 ```
@@ -512,7 +521,7 @@ t1k_body_size 1m;
 
 # 响应检测（检测 API 响应）
 tx_intercept @safelinex;
-tx_body_size 2m;
+tx_body_size 4k;
 tx_max_detect_size 100k;
 
 tx_ignore_types
@@ -543,7 +552,7 @@ foreach_server {
 
 ```nginx
 # 性能优化配置
-tx_body_size 1m;           # 不要太大
+tx_body_size 4k;           # 不要太大
 tx_max_detect_size 500k;   # 小响应跳过检测
 tx_ignore_types
     image/*
@@ -552,7 +561,7 @@ tx_ignore_types
     application/*;         # 忽略所有二进制文件
 
 location @safelinex {
-    tx_read_timeout 2s;    # 控制检测时间
+    tx_read_timeout 1s;    # 控制检测时间
 }
 ```
 
