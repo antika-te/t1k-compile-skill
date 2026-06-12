@@ -187,7 +187,7 @@ cd $NGINX_SRC
 # 复制工具到源码目录
 cp $T1K_CLI .
 
-# 编译并保存源码
+# 编译
 ./t1k_cli_amd64 -p "$T1K_PASS" -- "./configure \
   --prefix=/usr/local/openresty/nginx \
   --with-cc-opt=-O2 \
@@ -195,7 +195,6 @@ cp $T1K_CLI .
   --with-stream --with-stream_ssl_module \
   --with-stream_ssl_preread_module --with-http_ssl_module \
   --add-dynamic-module=\${t1k_dir} \
-  && cp -r \${t1k_dir} /usr/local/src/t1k_source \
   && make modules"
 
 # 处理模块
