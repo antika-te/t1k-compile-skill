@@ -5,7 +5,7 @@ description: 编译 OpenResty/Nginx 的 T1K 动态模块（雷池WAF引流/流�
 
 # T1K 模块编译工具
 
-编译 OpenResty/Nginx 的 T1K 动态模块（雷池 WAF 检测模块）。
+编译 OpenResty/Nginx 的 T1K 动态模块（雷池WAF引流/流量复制模块）。
 
 ## 交互规则
 

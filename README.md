@@ -1,6 +1,6 @@
 # T1K 模块编译 Skill
 
-Claude Code Skill - 自动化编译 OpenResty/Nginx 的 T1K 动态模块（雷池 WAF 检测模块）。
+Claude Code Skill - 自动化编译 OpenResty/Nginx 的 T1K 动态模块（雷池WAF引流/流量复制模块）。
 
 ## 功能
 
