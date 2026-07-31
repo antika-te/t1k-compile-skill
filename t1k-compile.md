@@ -89,41 +89,72 @@ nginx_sig=$(egrep -ao ".,.,.,[01]{33}" /usr/local/openresty/nginx/sbin/nginx)
 
 ## 使用方法
 
-用户提供以下信息，AI 自动完成编译：
+用户提供以下信息，AI 自动完成编译。
 
-**必需信息：**
-1. 服务器连接信息：`IP地址/用户名/密码` 或 SSH 免密地址
-2. 编译资源（二选一）：
-   - **源码方式**：t1k 源码目录路径
-   - **工具方式**：t1k_cli 编译工具路径 + 密码文件路径
-3. 检测节点地址
+**不需要登录客户的生产服务器**——用户直接提供生产环境参数即可。
+编译服务器需用户提供 SSH 连接信息，AI 远程执行编译、部署和验证。
+
+**必需信息（参数提供）：**
+1. 生产环境参数（从客户的 nginx 服务器获取，直接提供值即可）：
+   - `uname -r` — 内核版本
+   - `/etc/os-release` — 系统版本
+   - `nginx -V` — nginx 完整编译参数
+2. nginx 安装路径（如 `/usr/local/openresty`）
+3. 编译服务器 SSH 连接信息：`IP/用户名/密码` 或 SSH 免密地址
+4. 编译资源（二选一）：
+   - **源码方式**：编译服务器上 t1k 源码目录路径
+   - **工具方式**：编译服务器上 t1k_cli 编译工具路径 + 密码文件路径
+5. 检测节点地址
 
 **可选信息：**
-- nginx 源码路径（默认自动查找）
-- nginx 安装路径（默认 `/usr/local/openresty`）
+- 编译服务器上 nginx 源码路径（默认自动查找）
 
 ## 编译流程
 
-### 步骤 1：连接服务器并收集信息
+### 步骤 1：确认生产环境参数
+
+> **关键要求：** 以下参数必须来自客户正在运行 nginx 的**生产服务器**，由用户直接提供。
+> 编译服务器是根据这些参数**复制**出来的相同环境（内核版本、系统版本、nginx 版本一致），
+> 否则编译出的 `.so` 模块会因 ABI 不兼容导致 nginx 无法加载：
+> - `uname -r`（内核版本）
+> - `/etc/os-release`（系统版本）
+> - `nginx -V`（编译参数）
+
+用户提供以下生产环境参数，无需登录生产服务器：
 
 ```bash
-# 连接服务器（如有密码则使用 sshpass）
-sshpass -p '密码' ssh root@192.168.1.100 "命令"
-
-# 或免密登录
-ssh root@192.168.1.100 "命令"
-
-# 获取系统信息
-uname -r && cat /etc/os-release
-
-# 获取 nginx 版本和编译参数
-/usr/local/openresty/nginx/sbin/nginx -V 2>&1
-
-# 查找 nginx 源码目录
-find /usr/local/src -name "nginx-*.tar.gz" -o -name "openresty-*" -type d
+# 用户提供 — 从生产服务器获取的这些值
+UNAME_R="3.10.0-1160.el7.x86_64"
+OS_RELEASE="CentOS Linux 7 (Core)"
+NGINX_V_OUTPUT='nginx version: openresty/1.21.4.1
+built by gcc 4.8.5 20150623 (Red Hat 4.8.5-44) (GCC)
+built with OpenSSL 1.1.1k  25 Mar 2021
+TLS SNI support enabled
+configure arguments: --prefix=/usr/local/openresty/nginx --with-cc-opt=-O2 ...'
 ```
 
-### 步骤 2：选择编译方式
+### 步骤 2：连接编译服务器，验证环境一致性并执行编译
+
+> **重要：** 编译服务器必须与步骤 1 的生产环境参数（内核、系统版本、nginx 版本）一致。
+> 连接编译服务器后，先验证 `uname -r` 和 `/etc/os-release` 与步骤 1 提供的参数匹配，
+> 再使用步骤 1 的 `nginx -V` 中的 `configure arguments` 进行编译。
+
+**连接编译服务器：**
+
+```bash
+# 连接编译服务器（如有密码则使用 sshpass）
+sshpass -p '密码' ssh root@编译服务器IP "命令"
+
+# 或免密登录
+ssh root@编译服务器IP "命令"
+
+# 验证编译服务器内核版本与生产环境一致
+uname -r
+# 验证系统版本与生产环境一致
+cat /etc/os-release
+# 确认 nginx 源码目录存在（路径由用户提供或自动查找）
+find /usr/local/src -name "nginx-*.tar.gz" -o -name "openresty-*" -type d 2>/dev/null
+```
 
 #### 方式 A：使用源码目录编译（推荐）
 
@@ -139,7 +170,7 @@ cd $NGINX_SRC
 export LUAJIT_LIB=/usr/local/openresty/luajit/lib
 export LUAJIT_INC=/usr/local/openresty/luajit/include/luajit-2.1
 
-# 配置（使用完整参数）
+# 配置 — 以下参数为示例，必须从「步骤 1」的 nginx -V 输出中提取真实参数替换
 ./configure \
   --prefix=/usr/local/openresty/nginx \
   --with-cc-opt=-O2 \
@@ -187,7 +218,8 @@ cd $NGINX_SRC
 # 复制工具到源码目录
 cp $T1K_CLI .
 
-# 编译
+# 编译 — configure 参数必须从「步骤 1」的 nginx -V 输出中提取真实参数替换
+# 系统内核和版本信息必须在步骤 1 确认与编译环境一致
 ./t1k_cli_amd64 -p "$T1K_PASS" -- "./configure \
   --prefix=/usr/local/openresty/nginx \
   --with-cc-opt=-O2 \
@@ -451,6 +483,9 @@ tail -20 /opt/logs/error.log
 
 如果无法获取完整的 nginx 源码依赖，可使用简化参数：
 
+> **注意：** `--prefix`、`--with-cc-opt`、`--with-ld-opt` 等参数仍需从目标服务器 `nginx -V` 输出中提取，
+> 不能随意填写。
+
 ```bash
 ./configure \
   --prefix=/usr/local/openresty/nginx \
@@ -467,24 +502,32 @@ make modules
 
 编译时按以下步骤执行：
 
-1. [ ] 连接服务器
-2. [ ] 获取系统信息（`uname -r`, `cat /etc/os-release`）
-3. [ ] 获取 nginx 编译参数（`nginx -V`）
-4. [ ] 查找 nginx 源码目录
-5. [ ] 检查编译工具或源码
-6. [ ] 设置 LuaJIT 环境变量（OpenResty 需要）
-7. [ ] 执行 configure
-8. [ ] 执行 make modules
-9. [ ] strip 模块
-10. [ ] 部署到 modules 目录
-11. [ ] 创建 safeline.conf（配置检测节点 IP）
-12. [ ] 修改 nginx.conf（添加 load_module 和 include）
-13. [ ] 测试配置（`nginx -t`）
-14. [ ] 重载 nginx（`nginx -s reload`）
-15. [ ] 验证模块加载（`cat /proc/$(...)/maps | grep t1k`）
-16. [ ] 测试检测节点连接（`nc -zv IP PORT`）
+1. [ ] 确认用户已提供生产环境参数（`uname -r`、`/etc/os-release`、`nginx -V`）
+2. [ ] 连接编译服务器
+3. [ ] 验证编译服务器内核版本（`uname -r`）与步骤 1 的生产参数一致
+4. [ ] 验证编译服务器系统版本（`cat /etc/os-release`）与步骤 1 的生产参数一致
+5. [ ] 查找编译服务器上的 nginx 源码目录
+6. [ ] 检查编译工具或源码
+7. [ ] 设置 LuaJIT 环境变量（OpenResty 需要）
+8. [ ] 执行 configure（参数从步骤 1 的 `nginx -V` 输出中提取）
+9. [ ] 执行 make modules
+10. [ ] strip 模块
+11. [ ] 部署到 modules 目录
+12. [ ] 创建 safeline.conf（配置检测节点 IP）
+13. [ ] 修改 nginx.conf（添加 load_module 和 include）
+14. [ ] 测试配置（`nginx -t`）
+15. [ ] 重载 nginx（`nginx -s reload`）
+16. [ ] 验证模块加载（`cat /proc/$(...)/maps | grep t1k`）
+17. [ ] 测试检测节点连接（`nc -zv IP PORT`）
 
 ## 常见问题
+
+### 编译环境与运行环境不匹配（模块无法加载）
+编译 `.so` 时必须确保：
+1. `nginx -V` 输出的 configure 参数与编译时使用的参数一致
+2. 编译服务器的内核版本（`uname -r`）与目标服务器一致
+3. 系统版本（`/etc/os-release`）一致，尤其是 glibc 版本
+不一致会导致 nginx 加载模块时报 `undefined symbol` 或 `version GLIBC_X.XX not found` 等错误。
 
 ### LuaJIT 未找到
 ```bash
